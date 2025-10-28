@@ -1,144 +1,69 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <title>Jamf Device User Matcher</title>
-  <!-- React + ReactDOM -->
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <!-- Babel für JSX -->
-  <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
-  <!-- XLSX -->
-  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
-  <style>
-    body { font-family: sans-serif; padding: 20px; background: #f5f5f5; }
-    input { margin: 5px 0; }
-    button { margin: 10px 0; padding: 5px 10px; }
-    table { border-collapse: collapse; width: 100%; margin-top: 10px; }
-    th, td { border: 1px solid #999; padding: 5px; }
-    .matched { background: #d4f4dd; }
-    .notfound { background: #f8d7da; }
-  </style>
+<meta charset="UTF-8">
+<title>Jamf Matcher</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 </head>
-<body>
-  <div id="root"></div>
+<body class="bg-gray-50 p-6">
+<div id="root"></div>
 
-  <script type="text/babel">
-    const { useState } = React;
+<script type="text/babel">
+const { useState } = React;
 
-    const JamfDeviceUserMatcher = () => {
-      const [serialNumbers, setSerialNumbers] = useState([]);
-      const [usernames, setUsernames] = useState([]);
-      const [schoolAssignments, setSchoolAssignments] = useState([]);
-      const [matches, setMatches] = useState([]);
-      const [stats, setStats] = useState({ matched: 0, notFound: 0 });
+const IconCheck = () => <span className="text-green-600 font-bold">&#10003;</span>;
+const IconCross = () => <span className="text-red-600 font-bold">&#10007;</span>;
 
-      const parseCSV = (text) => {
-        const lines = text.trim().split('\n');
-        if (lines.length < 2) return [];
-        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-        return lines.slice(1).filter(line => line.trim()).map(line => {
-          const values = line.split(',').map(v => v.trim());
-          const obj = {};
-          headers.forEach((header, i) => { obj[header] = values[i] || ''; });
-          return obj;
-        });
-      };
+const JamfDeviceUserMatcher = () => {
+  const [serials, setSerials] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [school, setSchool] = useState([]);
+  const [matches, setMatches] = useState([]);
+  const [stats, setStats] = useState({ matched:0, notFound:0 });
 
-      const parseExcel = (arrayBuffer) => {
-        try {
-          const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-          const sheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-          if (jsonData.length < 2) return [];
-          const headers = jsonData[0].map(h => String(h).trim().toLowerCase());
-          return jsonData.slice(1).filter(row => row.some(cell => cell !== undefined && cell !== '')).map(row => {
-            const obj = {};
-            headers.forEach((header, i) => { obj[header] = row[i] ? String(row[i]).trim() : ''; });
-            return obj;
-          });
-        } catch (error) {
-          alert('Fehler beim Lesen der Excel-Datei. Bitte Datei prüfen.');
-          return [];
-        }
-      };
+  const parseCSV = text => {
+    const lines = text.trim().split("\n");
+    if(lines.length < 2) return [];
+    const headers = lines[0].split(',').map(h=>h.trim().toLowerCase());
+    return lines.slice(1).map(line=>{
+      const vals = line.split(',').map(v=>v.trim());
+      const obj = {}; headers.forEach((h,i)=>obj[h]=vals[i]||''); return obj;
+    });
+  }
 
-      const handleFileUpload = (event, type) => {
-        const file = event.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
-        reader.onload = (e) => {
-          const data = isExcel ? parseExcel(e.target.result) : parseCSV(e.target.result);
-          if (type === 'serials') setSerialNumbers(data);
-          else if (type === 'users') setUsernames(data);
-          else if (type === 'school') setSchoolAssignments(data);
-        };
-        if (isExcel) reader.readAsArrayBuffer(file);
-        else reader.readAsText(file);
-      };
+  const parseExcel = arrayBuffer => {
+    try{
+      const wb = XLSX.read(arrayBuffer,{type:'array'});
+      const ws = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1});
+      const headers = ws[0].map(h=>String(h).trim().toLowerCase());
+      return ws.slice(1).map(r=>{
+        const obj = {}; headers.forEach((h,i)=>obj[h]=r[i]?String(r[i]).trim():''); return obj;
+      });
+    }catch(e){alert('Excel Fehler'); return [];}
+  }
 
-      const performMatching = () => {
-        if (!serialNumbers.length || !usernames.length || !schoolAssignments.length) {
-          alert('Bitte alle drei Dateien hochladen!');
-          return;
-        }
-        const serialMap = new Map(serialNumbers.map(item => [(item.serialnumber || item.serial || item.seriennummer || '').toUpperCase(), item]));
-        const userMap = new Map(usernames.map(item => [(item.username || item.user || item.benutzername || '').toLowerCase(), item]));
-        let matched = 0, notFound = 0;
-        const results = schoolAssignments.map((assignment, index) => {
-          const s = (assignment.serialnumber || assignment.serial || assignment.seriennummer || '').toUpperCase();
-          const u = (assignment.username || assignment.user || assignment.benutzername || assignment.schüler || assignment.student || '').toLowerCase();
-          let status = 'notfound';
-          if (s && serialMap.has(s) && u && userMap.has(u)) { status = 'matched'; matched++; }
-          else { notFound++; }
-          return { id: index, serial: s, user: u, status };
-        });
-        setMatches(results);
-        setStats({ matched, notFound });
-      };
+  const handleUpload = (e,type)=>{
+    const f = e.target.files[0]; if(!f) return;
+    const r = new FileReader();
+    const excel = f.name.endsWith('.xls')||f.name.endsWith('.xlsx');
+    r.onload = ev => {
+      const data = excel?parseExcel(ev.target.result):parseCSV(ev.target.result);
+      if(type==='serials') setSerials(data);
+      else if(type==='users') setUsers(data);
+      else setSchool(data);
+    }
+    excel?r.readAsArrayBuffer(f):r.readAsText(f);
+  }
 
-      return (
-        <div>
-          <h2>Jamf Benutzer-Gerätezuordnung</h2>
-
-          <div>
-            <label>Seriennummern (CSV/Excel): <input type="file" onChange={e => handleFileUpload(e, 'serials')} /></label><br/>
-            <label>Benutzernamen (CSV/Excel): <input type="file" onChange={e => handleFileUpload(e, 'users')} /></label><br/>
-            <label>Schul-Zuordnung (CSV/Excel): <input type="file" onChange={e => handleFileUpload(e, 'school')} /></label>
-          </div>
-
-          <button onClick={performMatching}>Matching durchführen</button>
-
-          {matches.length > 0 && (
-            <div>
-              <p>Erfolgreich: {stats.matched} | Nicht gefunden: {stats.notFound} | Gesamt: {matches.length}</p>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Status</th>
-                    <th>Serial</th>
-                    <th>User</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {matches.map(m => (
-                    <tr key={m.id} className={m.status === 'matched' ? 'matched' : 'notfound'}>
-                      <td>{m.status}</td>
-                      <td>{m.serial || '-'}</td>
-                      <td>{m.user || '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      );
-    };
-
-    ReactDOM.createRoot(document.getElementById('root')).render(<JamfDeviceUserMatcher />);
-  </script>
-</body>
-</html>
+  const doMatch = ()=>{
+    if(!serials.length||!users.length||!school.length){alert('Alle drei Dateien hochladen!'); return;}
+    const sMap = new Map(serials.map(i=>[(i.serialnumber||i.serial||i.seriennummer||'').toUpperCase(),i]));
+    const uMap = new Map(users.map(i=>[(i.username||i.user||i.benutzername||'').toLowerCase(),i]));
+    let m=0, nf=0;
+    const res = school.map((a,i)=>{
+      const s = (a.serialnumber||a.serial||a.seriennummer||'').toUpperCase();
+      const u = (a.username||a.user||a.benutzername||'').t
