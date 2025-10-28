@@ -17,8 +17,9 @@
 <!-- XLSX für Excel-Verarbeitung -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 
-<!-- Lucide Icons CDN -->
+<!-- Lucide Icons -->
 <script src="https://cdn.jsdelivr.net/npm/lucide/dist/lucide.min.js"></script>
+
 </head>
 <body class="bg-gray-50 p-6">
 
@@ -27,9 +28,8 @@
 <script type="text/babel">
 
 const { useState } = React;
-const { Download, CheckCircle, XCircle, AlertTriangle, Users, Tablet, Link, FileText } = lucide;
+const { Download, CheckCircle, XCircle, AlertTriangle, Users, Tablet, Link, FileText } = lucide.icons;
 
-// --- Dein Original-Code ---
 const JamfDeviceUserMatcher = () => {
   const [serialNumbers, setSerialNumbers] = useState([]);
   const [usernames, setUsernames] = useState([]);
@@ -236,6 +236,7 @@ const JamfDeviceUserMatcher = () => {
           <button onClick={performMatching} className="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-900">Matching durchführen</button>
           <button onClick={exportMatches} className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">CSV Export</button>
         </div>
+
         {matches.length>0 && (
           <div className="overflow-x-auto mt-4">
             <table className="w-full border-collapse border border-gray-300">
@@ -260,10 +261,11 @@ const JamfDeviceUserMatcher = () => {
             </table>
           </div>
         )}
+
       </div>
     </div>
   )
-}
+};
 
 ReactDOM.createRoot(document.getElementById('root')).render(<JamfDeviceUserMatcher />);
 
