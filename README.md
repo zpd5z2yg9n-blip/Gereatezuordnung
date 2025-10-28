@@ -1,2 +1,2 @@
-# Gereatezuordnung
+# Geraetezuordnung
 Gereatezuordnung
