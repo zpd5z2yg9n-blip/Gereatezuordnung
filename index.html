@@ -1,30 +1,29 @@
 import React, { useState } from 'react';
 import * as XLSX from 'xlsx';
-import { CheckCircle, XCircle } from 'lucide-react';
 
 const JamfDeviceUserMatcher = () => {
-  const [serialNumbers, setSerialNumbers] = useState([]);
-  const [usernames, setUsernames] = useState([]);
-  const [schoolAssignments, setSchoolAssignments] = useState([]);
+  const [serials, setSerials] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [assignments, setAssignments] = useState([]);
   const [matches, setMatches] = useState([]);
   const [stats, setStats] = useState({ matched: 0, notFound: 0 });
 
-  const parseCSV = (text) => {
+  const parseCSV = text => {
     const lines = text.trim().split('\n');
     if (lines.length < 2) return [];
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-    return lines.slice(1).filter(line => line.trim()).map(line => {
-      const values = line.split(',').map(v => v.trim());
+    return lines.slice(1).map(line => {
+      const values = line.split(',');
       const obj = {};
-      headers.forEach((h, i) => obj[h] = values[i] || '');
+      headers.forEach((h, i) => obj[h] = (values[i] || '').trim());
       return obj;
     });
   };
 
-  const parseExcel = (arrayBuffer) => {
-    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const data = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+  const parseExcel = buffer => {
+    const wb = XLSX.read(buffer, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
     if (data.length < 2) return [];
     const headers = data[0].map(h => String(h).trim().toLowerCase());
     return data.slice(1).map(row => {
@@ -34,71 +33,69 @@ const JamfDeviceUserMatcher = () => {
     });
   };
 
-  const handleFileUpload = (e, type) => {
+  const handleUpload = (e, type) => {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
     const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
-    reader.onload = (event) => {
+    reader.onload = event => {
       const data = isExcel ? parseExcel(event.target.result) : parseCSV(event.target.result);
-      if (type === 'serials') setSerialNumbers(data);
-      else if (type === 'users') setUsernames(data);
-      else if (type === 'school') setSchoolAssignments(data);
+      if (type === 'serials') setSerials(data);
+      else if (type === 'users') setUsers(data);
+      else if (type === 'assignments') setAssignments(data);
     };
     isExcel ? reader.readAsArrayBuffer(file) : reader.readAsText(file);
   };
 
   const performMatching = () => {
-    if (!serialNumbers.length || !usernames.length || !schoolAssignments.length) return;
-    const serialMap = new Map(serialNumbers.map(s => [(s.serialnumber || s.serial || '').toUpperCase(), s]));
-    const userMap = new Map(usernames.map(u => [(u.username || u.user || '').toLowerCase(), u]));
+    if (!serials.length || !users.length || !assignments.length) return;
+    const serialMap = new Map(serials.map(s => [(s.serialnumber || s.serial || '').toUpperCase(), s]));
+    const userMap = new Map(users.map(u => [(u.username || u.user || '').toLowerCase(), u]));
     let matched = 0, notFound = 0;
-    const results = schoolAssignments.map((a, idx) => {
+    const results = assignments.map((a, i) => {
       const s = (a.serialnumber || a.serial || '').toUpperCase();
       const u = (a.username || a.user || '').toLowerCase();
       let status = 'not_found';
       if (s && serialMap.has(s) && u && userMap.has(u)) { status = 'matched'; matched++; }
       else { notFound++; }
-      return { id: idx, serial: s, user: u, status };
+      return { id: i, serial: s, user: u, status };
     });
     setMatches(results);
     setStats({ matched, notFound });
   };
 
-  const getIcon = (status) => status === 'matched' ? <CheckCircle className="text-green-600" /> : <XCircle className="text-red-600" />;
-
   return (
-    <div className="p-4 max-w-3xl mx-auto">
-      <h1 className="text-xl font-bold mb-4">Jamf Benutzer-Gerätezuordnung</h1>
-      
-      <div className="flex gap-4 mb-4">
-        <input type="file" accept=".csv,.xlsx" onChange={e => handleFileUpload(e, 'serials')} />
-        <input type="file" accept=".csv,.xlsx" onChange={e => handleFileUpload(e, 'users')} />
-        <input type="file" accept=".csv,.xlsx" onChange={e => handleFileUpload(e, 'school')} />
+    <div style={{ padding: '20px', maxWidth: '800px', margin: 'auto' }}>
+      <h2>Jamf Benutzer-Gerätezuordnung</h2>
+
+      <div style={{ display: 'flex', gap: '10px', margin: '10px 0' }}>
+        <input type="file" onChange={e => handleUpload(e, 'serials')} />
+        <input type="file" onChange={e => handleUpload(e, 'users')} />
+        <input type="file" onChange={e => handleUpload(e, 'assignments')} />
       </div>
 
-      <button onClick={performMatching} className="mb-4 px-4 py-2 bg-blue-600 text-white rounded">Matching durchführen</button>
+      <button onClick={performMatching} style={{ marginBottom: '10px' }}>Matching durchführen</button>
 
       {matches.length > 0 && (
         <>
-          <div className="mb-2">
-            <span className="mr-4">Erfolgreich: {stats.matched}</span>
-            <span>Nicht gefunden: {stats.notFound}</span>
+          <div style={{ marginBottom: '10px' }}>
+            Erfolgreich: {stats.matched} | Nicht gefunden: {stats.notFound} | Gesamt: {matches.length}
           </div>
-          <table className="w-full border border-gray-300">
+
+          <table border="1" cellPadding="5" cellSpacing="0" style={{ width: '100%' }}>
             <thead>
-              <tr className="bg-gray-100">
-                <th className="border px-2 py-1">Status</th>
-                <th className="border px-2 py-1">Serial</th>
-                <th className="border px-2 py-1">User</th>
+              <tr>
+                <th>Status</th>
+                <th>Serial</th>
+                <th>User</th>
               </tr>
             </thead>
             <tbody>
               {matches.map(m => (
-                <tr key={m.id}>
-                  <td className="border px-2 py-1">{getIcon(m.status)}</td>
-                  <td className="border px-2 py-1 font-mono">{m.serial || '-'}</td>
-                  <td className="border px-2 py-1 font-mono">{m.user || '-'}</td>
+                <tr key={m.id} style={{ background: m.status === 'matched' ? '#d4f4dd' : '#f8d7da' }}>
+                  <td>{m.status}</td>
+                  <td>{m.serial || '-'}</td>
+                  <td>{m.user || '-'}</td>
                 </tr>
               ))}
             </tbody>
